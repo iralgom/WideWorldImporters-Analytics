@@ -1,0 +1,627 @@
+# Business Questions & KPI Framework
+
+## 1. Purpose
+
+This document defines the business questions, analytical scope, KPI definitions, and calculation rules for the WideWorldImporters Analytics project.
+
+Its purpose is to establish a consistent analytical contract before developing analytical SQL queries or Power BI measures.
+
+The framework ensures that:
+
+- business questions drive the analysis;
+- KPIs have explicit business definitions;
+- SQL and Power BI use consistent calculation logic;
+- the grain of `Fact.Sale` is respected;
+- analytical findings can be validated against established baselines.
+
+---
+
+## 2. Analytical Objective
+
+The objective of the analysis is to evaluate commercial performance and profitability across time, customers, products, territories, and salespeople.
+
+The analysis aims to:
+
+- measure revenue, profit, transaction volume, and units sold;
+- identify the primary drivers of commercial performance;
+- evaluate differences between revenue generation and profitability;
+- identify high- and low-performing customers and products;
+- evaluate geographic and salesperson performance;
+- investigate the concentration of negative-profit sales;
+- provide decision-oriented insights through a Power BI dashboard.
+
+The primary analytical domain is:
+
+> **Sales Performance & Profitability Analytics**
+
+---
+
+## 3. Analytical Scope
+
+### Included
+
+The initial analysis focuses on:
+
+- invoiced sales;
+- revenue excluding tax;
+- profit and profit margin;
+- invoice volume;
+- units sold;
+- customer performance;
+- product performance;
+- geographic performance;
+- salesperson performance;
+- temporal trends;
+- negative-profit transactions.
+
+### Excluded
+
+The following domains are outside the initial analytical scope:
+
+- purchasing;
+- supplier performance;
+- inventory optimization;
+- warehouse movements;
+- accounts receivable;
+- payment behavior;
+- order fulfillment analysis.
+
+These domains may be incorporated in future project iterations using other fact tables available in `WideWorldImportersDW`.
+
+---
+
+## 4. Analytical Grain
+
+The primary analytical table is:
+
+`Fact.Sale`
+
+Profiling established that:
+
+> **One row in `Fact.Sale` represents one product line within an invoice.**
+
+The dataset contains:
+
+- 228,265 sales lines;
+- 70,510 distinct invoices.
+
+This grain must be respected when defining KPIs.
+
+For example:
+
+- `COUNT(*)` represents sales lines;
+- `COUNT(DISTINCT [WWI Invoice ID])` represents invoices;
+- `SUM(Quantity)` represents units sold.
+
+Therefore, fact-row counts must not be interpreted as transaction or invoice counts.
+
+---
+
+## 5. Business Questions
+
+### 5.1 Commercial Performance
+
+**BQ01 — Performance over time**
+
+How have revenue, profit, units sold, and invoice volume evolved during the available period?
+
+**BQ02 — Revenue vs profitability**
+
+Is revenue growth accompanied by proportional profit growth?
+
+**BQ03 — Temporal patterns**
+
+Are there meaningful monthly, annual, or seasonal patterns in commercial performance?
+
+---
+
+### 5.2 Profitability
+
+**BQ04 — Profit margin**
+
+How has profit margin evolved over time?
+
+**BQ05 — Profitability drivers**
+
+Which products, customers, and territories generate the highest and lowest profit?
+
+**BQ06 — Negative-profit concentration**
+
+Where are negative-profit sales concentrated and what is their financial impact?
+
+---
+
+### 5.3 Customers
+
+**BQ07 — Customer contribution**
+
+Which customers and customer categories generate the highest revenue and profit?
+
+**BQ08 — Customer concentration**
+
+How concentrated are revenue and profit among the largest customers?
+
+**BQ09 — Customer profitability**
+
+Are there customer segments that generate high revenue but comparatively low profitability?
+
+---
+
+### 5.4 Products
+
+**BQ10 — Product performance**
+
+Which products generate the highest revenue, units sold, and profit?
+
+**BQ11 — Volume vs profitability**
+
+Are the highest-volume products also the most profitable products?
+
+**BQ12 — Loss-generating products**
+
+Which products generate negative-profit sales and how significant is their impact?
+
+---
+
+### 5.5 Geography and Salespeople
+
+**BQ13 — Geographic performance**
+
+Which sales territories, regions, states, and cities generate the highest revenue and profit?
+
+**BQ14 — Salesperson performance**
+
+Which salespeople generate the highest revenue and profit?
+
+**BQ15 — Commercial efficiency**
+
+Are there territories or salespeople with high sales volume but comparatively low profitability?
+
+---
+
+## 6. Core KPI Framework
+
+### KPI 01 — Revenue
+
+**Business definition**
+
+Revenue generated from invoiced product sales before tax.
+
+**Source**
+
+`Fact.Sale`
+
+**Source column**
+
+`Total Excluding Tax`
+
+**SQL definition**
+
+```sql
+SUM([Total Excluding Tax])
+```
+
+**Baseline**
+
+`$172,261,341.20`
+
+**Interpretation**
+
+Revenue excludes tax because collected tax is not treated as commercial revenue.
+
+---
+
+### KPI 02 — Profit
+
+**Business definition**
+
+Total profit generated by invoiced product sales.
+
+**Source**
+
+`Fact.Sale`
+
+**Source column**
+
+`Profit`
+
+**SQL definition**
+
+```sql
+SUM([Profit])
+```
+
+**Baseline**
+
+`$85,729,180.90`
+
+---
+
+### KPI 03 — Profit Margin %
+
+**Business definition**
+
+Percentage of revenue retained as profit.
+
+**Formula**
+
+```text
+Profit / Revenue
+```
+
+**SQL definition**
+
+```sql
+SUM([Profit])
+/
+NULLIF(SUM([Total Excluding Tax]), 0)
+```
+
+The result should be formatted as a percentage.
+
+**Important**
+
+Profit margin must be calculated from aggregated profit and aggregated revenue.
+
+It must not be calculated as the simple average of row-level margins.
+
+---
+
+### KPI 04 — Invoices
+
+**Business definition**
+
+Number of distinct invoices represented in the sales fact.
+
+**Source column**
+
+`WWI Invoice ID`
+
+**SQL definition**
+
+```sql
+COUNT(DISTINCT [WWI Invoice ID])
+```
+
+**Baseline**
+
+`70,510`
+
+**Important**
+
+`COUNT(*)` must not be used because `Fact.Sale` has invoice-line grain.
+
+---
+
+### KPI 05 — Units Sold
+
+**Business definition**
+
+Total number of product units represented in invoiced sales.
+
+**Source column**
+
+`Quantity`
+
+**SQL definition**
+
+```sql
+SUM([Quantity])
+```
+
+**Baseline**
+
+`8,950,628`
+
+---
+
+### KPI 06 — Average Invoice Value
+
+**Business definition**
+
+Average revenue generated per invoice.
+
+**Formula**
+
+```text
+Revenue / Invoices
+```
+
+**SQL definition**
+
+```sql
+SUM([Total Excluding Tax])
+/
+NULLIF(COUNT(DISTINCT [WWI Invoice ID]), 0)
+```
+
+**Important**
+
+This metric must not be calculated using:
+
+```sql
+AVG([Total Excluding Tax])
+```
+
+because that would calculate average revenue per invoice line rather than per invoice.
+
+---
+
+### KPI 07 — Profit per Invoice
+
+**Business definition**
+
+Average profit generated per invoice.
+
+**Formula**
+
+```text
+Profit / Invoices
+```
+
+**SQL definition**
+
+```sql
+SUM([Profit])
+/
+NULLIF(COUNT(DISTINCT [WWI Invoice ID]), 0)
+```
+
+---
+
+### KPI 08 — Negative Profit
+
+**Business definition**
+
+Aggregate profit associated exclusively with sales lines where profit is below zero.
+
+**SQL definition**
+
+```sql
+SUM(
+    CASE
+        WHEN [Profit] < 0 THEN [Profit]
+        ELSE 0
+    END
+)
+```
+
+**Profiling baseline**
+
+`-$320,493.55`
+
+This metric measures the financial magnitude of negative-profit sales rather than their frequency.
+
+---
+
+## 7. Diagnostic Metrics
+
+The following measures support deeper analysis but are not necessarily intended to appear as primary dashboard KPI cards.
+
+| Metric | Definition |
+|---|---|
+| Sales Lines | `COUNT(*)` |
+| Negative-Profit Lines | Count of fact rows where `Profit < 0` |
+| Negative-Profit Invoices | Distinct invoices containing at least one negative-profit line |
+| Negative-Profit Products | Distinct products associated with negative-profit lines |
+| Customer Count | Distinct customers represented in sales |
+| Product Count | Distinct products represented in sales |
+| Revenue per Unit | Revenue / Units Sold |
+| Units per Invoice | Units Sold / Invoices |
+
+Profiling established the following negative-profit baseline:
+
+- 4,626 negative-profit sales lines;
+- 4,494 affected invoices;
+- 18 affected products;
+- aggregate negative profit of `-$320,493.55`.
+
+---
+
+## 8. Analytical Dimensions
+
+### Time
+
+Primary source:
+
+`Dimension.Date`
+
+Relevant attributes include:
+
+- Date
+- Month
+- Calendar Month Number
+- Calendar Month Label
+- Calendar Year
+- Fiscal Month
+- Fiscal Year
+- ISO Week Number
+
+The primary sales date is:
+
+`Fact.Sale.[Invoice Date Key]`
+
+`Delivery Date Key` represents a separate analytical role and should not be substituted for invoice date when calculating sales performance.
+
+---
+
+### Customer
+
+Primary source:
+
+`Dimension.Customer`
+
+Relevant attributes include:
+
+- Customer
+- Category
+- Buying Group
+- Bill To Customer
+- Postal Code
+
+Customer and Bill-To Customer represent different analytical roles.
+
+---
+
+### Product
+
+Primary source:
+
+`Dimension.Stock Item`
+
+Relevant attributes include:
+
+- Stock Item
+- Color
+- Brand
+- Size
+- Selling Package
+- Is Chiller Stock
+
+The dimension contains historical versions identified by different `Stock Item Key` values for the same `WWI Stock Item ID`.
+
+---
+
+### Geography
+
+Primary source:
+
+`Dimension.City`
+
+Relevant attributes include:
+
+- City
+- State Province
+- Sales Territory
+- Region
+- Country
+- Continent
+
+---
+
+### Salesperson
+
+Primary source:
+
+`Dimension.Employee`
+
+Relevant attributes include:
+
+- Employee
+- Preferred Name
+- Is Salesperson
+
+The sales fact relates to the dimension through:
+
+`Salesperson Key`
+
+---
+
+## 9. Dimensional History Considerations
+
+Profiling identified historical dimensional versions in:
+
+- `Dimension.Stock Item`;
+- `Dimension.Employee`;
+- `Dimension.City`.
+
+These dimensions use surrogate keys to preserve historical states.
+
+Analytical queries should join facts to dimensions using the warehouse surrogate keys, for example:
+
+```sql
+Fact.Sale.[Stock Item Key]
+=
+Dimension.[Stock Item].[Stock Item Key]
+```
+
+Queries should not replace these relationships with joins using source-system business identifiers such as `WWI Stock Item ID`.
+
+Doing so could collapse historical versions and change analytical results.
+
+---
+
+## 10. Data Quality Considerations
+
+The profiling phase found strong structural and arithmetic consistency in `Fact.Sale`.
+
+No issues were identified for:
+
+- primary key uniqueness;
+- required analytical keys;
+- referential integrity;
+- positive quantities;
+- non-negative revenue;
+- arithmetic reconciliation.
+
+Two findings require analytical awareness.
+
+### Null Delivery Dates
+
+284 sales lines across 84 invoices contain a null `Delivery Date Key`.
+
+All correspond to invoices dated `2016-05-31`, the final transaction date in the available dataset.
+
+The current hypothesis is that these transactions had not reached delivery status at the warehouse cutoff.
+
+This remains an inference rather than a confirmed business rule.
+
+### Negative Profit
+
+4,626 sales lines have negative profit.
+
+These transactions passed the primary arithmetic and structural validation tests and therefore should not automatically be classified as data-quality errors.
+
+They will be investigated as a business phenomenon during the analytical phase.
+
+---
+
+## 11. Analytical Principles
+
+The following rules will govern subsequent SQL and Power BI development.
+
+1. Business questions must precede visualization selection.
+2. KPI definitions must remain consistent between SQL and Power BI.
+3. Revenue will be measured excluding tax.
+4. Invoice counts will use distinct invoice identifiers.
+5. Profit margin will be calculated from aggregated profit and revenue.
+6. Fact-to-dimension joins will use warehouse surrogate keys.
+7. Negative-profit transactions will be retained unless evidence establishes that they are erroneous.
+8. Null delivery dates will not be removed without evidence that they represent invalid data.
+9. SQL results will establish reconciliation baselines for Power BI.
+10. Analytical conclusions will distinguish observed facts from interpretations and hypotheses.
+
+---
+
+## 12. Expected Analytical Outputs
+
+The analytical phase is expected to produce evidence supporting:
+
+- executive commercial performance;
+- revenue and profit trends;
+- profitability analysis;
+- customer contribution and concentration;
+- product performance;
+- negative-profit investigation;
+- geographic performance;
+- salesperson performance.
+
+The final dashboard structure will be determined by analytical findings rather than predefined visual layouts.
+
+---
+
+## 13. Next Step
+
+The next phase will translate this framework into reproducible analytical SQL.
+
+Each analytical script should:
+
+1. address one or more defined business questions;
+2. use the KPI definitions established in this document;
+3. preserve the grain of the underlying fact table;
+4. produce results that can later be reconciled against Power BI;
+5. document material findings and unresolved questions.
+
+The next project phase is:
+
+**Analytical SQL Development**
